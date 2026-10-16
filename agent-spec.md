@@ -15,7 +15,7 @@ para qualquer empresa é uma linha genérica — o exemplo do seu segmento
 -->
 
 **Domínio:** AMS · Assistente de Manutenção Segura
-**Autor(a):** Bruna de Paula Monarin · **Última revisão:** 15/10/2026
+**Autor(a):** Bruna de Paula Monarin · **Última revisão:** 16/10/2026
 
 ---
 
@@ -38,6 +38,8 @@ para qualquer empresa é uma linha genérica — o exemplo do seu segmento
 
 **Performance:**
 
+<!-- Resposta inicial não considerava que o agente deve agir de forma sequencial, já que deve manter consistência nas recomendações e verificar se suas recomendações estão sendo seguidas. A lógica inicial, não mais válida:
+
 Desempenho = (1 - ( 29,498 * número de falhas não antecipadas + número de paradas desnecessárias ) / número total de ordens ) * 100
 
 Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e desempenho melhor do que um agente simples (3,39%):
@@ -45,6 +47,20 @@ Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e desempe
 * Agente nunca recomenda manutenção: 29,498 * 339 / 10000 = 0,001%
 
 Explicação para o número 29,948: como a taxa de falhas é baixa, o peso para falhas não antecipadas deve ser maior para que o agente considere importante antecipar falhas, já que devemos otimizar o tempo ativo das máquinas. De forma similar, recomendar manutenções demais também é um problema. Ainda assim, recomendar e pecar por excesso é melhor do que ignorar a necessidade de manutenções. O número minimiza ao máximo o desempenho da pior opção.
+-->
+
+Horas perdidas = hd+hf (quanto menor, melhor)
+
+hd = horas perdidas em manutenções em que a máquina não falharia = número de paradas desnecessárias * tempo de manutenção
+hf = horas perdidas por falha em que o agente não havia recomendado manutenção na última ordem de serviço antes da falha = número de falhas não antecipadas * tempo em falha
+
+Conjunto: as 10.000 ordens de serviço do AI4I, avaliação offline; em planta real, as ordens de serviço de cada máquina no período.
+
+Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e menos horas perdidas do que o melhor agente simples (agente que nunca ou sempre recomenda manutenção). Considerando tempo médio de manutenção Tm (em horas) e tempo médio em falha Tf (em horas) para uma máquina (usando uma média para todos os tipos de máquina), e que Tf = Tm * 5 (estimativa baseada no fato de que uma quebra exige reparo e espera de peças), temos os seguintes valores para os agentes simples:
+* Agente sempre recomenda manutenção: 9661 * Tm
+* Agente nunca recomenda manutenção: 339 * Tf = 339 * 5 * Tm = 1695 * Tm
+
+Termo contra a trapaça: recomendar manutenções sempre gasta horas de manutenção e não recomendar leva a falhas - nenhum dos extremos passa. O agente não é punido se o técnico ignora sua recomendação, mas é punido se mudar de recomendação na ordem seguinte.
 
 **Environment:**
 
@@ -57,7 +73,7 @@ Comunicar, de forma curta, justificada e auditável, nível de risco de falha, n
 **Sensors:**
 
 Ordens de serviço (máquina, tipo de produto, leitura de sensores, descrição da intervenção), texto das NRs (10, 12 e 35).
-O agente enxerga somente as leituras registradas nas ordens, não o estado real da máquina. O agente não vê o histórico de intervenções nem se a falha de fato aconteceu.
+O agente enxerga somente as leituras registradas nas ordens, não o estado real da máquina. O agente tem acesso às suas recomendações anteriores e se a ordem de serviço foi executada.
 
 ---
 
@@ -79,8 +95,13 @@ Perguntas que guiam o preenchimento (uma por dimensão):
 -->
 **Quando se preenche:** no Laboratório 02, no sábado (encontro 2).
 
-[uma linha por dimensão: a classificação e a frase de
-justificativa — começando por observabilidade e determinismo]
+- Parcialmente observável: Existem variáveis não medidas que mudam a decisão correta, como histórico da máquina específica e condições do ambiente.
+- Multiagente: O técnico reage à recomendação e decide segui-la ou não.
+- Estocástico: O agente lê texto usando um LLM (ação estocástica) e sua recomendação pode ser seguida ou ignorada pelo técnico.
+- Sequencial: A recomendação atual pode mudar o estado futuro da máquina e a confiança do técnico nas recomendações seguintes.
+- Dinâmico: As máquinas podem falhar depois da criação da ordem de serviço, e a demora na resposta impacta a experiência dos técnicos.
+- Discreto e contínuo: Ações são discretas (recomendações), mas os estados das máquinas são contínuos.
+- Conhecido: O agente sabe que tipos de máquina existem e quais normas deve seguir.
 
 ---
 
