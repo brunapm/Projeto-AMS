@@ -194,5 +194,9 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** no Laboratório 03, sábado à tarde (encontro 2).
 
-[os cinco componentes do seu subproblema: estado inicial,
-ações, transição, teste de objetivo, custo]
+  - Estado: o par itens conferidos e pendências abertas.
+  - Estado inicial: nada conferido, nenhuma pendência aberta.
+  - Ações: conferir um item ainda não conferido, ou resolver uma pendência aberta.
+  - Transição: conferir soma o item aos conferidos e abre as pendências dele; resolver tira a pendência das abertas.
+  - Objetivo: todos os itens conferidos E nenhuma pendência aberta — só então a intervenção é liberada.
+  - Custo: minutos de cada ação (estimativas, não medições).
