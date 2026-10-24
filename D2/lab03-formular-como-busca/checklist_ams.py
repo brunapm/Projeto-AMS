@@ -11,14 +11,14 @@ aplicados"); pendência é a CORREÇÃO quando a condição não é atendida
 resolver é fazer o que falta.
 
 Duas instâncias, o mesmo caso de partida — o técnico chega à máquina sem
-nada preparado; só a qualificação e autorização dele estão em ordem.
+nada preparado além de autorização, qualificação e capacitação em primeiros socorros.
 Verificar um item sempre abre as mesmas pendências (o caso é fixo).
   - OS_CHAO (NR-12 + NR-10): intervenção elétrica numa máquina no nível do
-    chão. 7 itens, 6 pendências.
+    chão. 9 itens, 7 pendências.
   - OS_ALTO (NR-12 + NR-10 + NR-35): a mesma intervenção, numa plataforma
     acima de 2 m. Soma os itens de altura; a análise de risco, a permissão
     de trabalho e a capacitação para altura já estão em ordem, o sistema de
-    proteção contra quedas não. 10 itens, 7 pendências.
+    proteção contra quedas não. 12 itens, 8 pendências.
 
 Granularidade: bloqueio e etiqueta são UM item (LOTO é um procedimento
 só — a NR-12 exige os dois juntos), e análise de risco e permissão de
@@ -29,8 +29,8 @@ Os cinco componentes:
   - Estado: o par (itens conferidos, pendências abertas), cada um como
     tupla ordenada — a situação no posto, não a ordem em que se chegou nela.
   - Estado inicial: nada conferido, nenhuma pendência aberta.
-  - Ações: conferir um item ainda não conferido, ou resolver uma pendência
-    aberta.
+  - Ações: conferir um item ainda não conferido e liberado (pré-requisitos
+    concluídos), ou resolver uma pendência aberta.
   - Transição: conferir soma o item aos conferidos e abre as pendências
     dele; resolver tira a pendência das abertas.
   - Objetivo: todos os itens conferidos E nenhuma pendência aberta — só
@@ -42,9 +42,11 @@ dobro (`fator_retrabalho` = 2.0) — enquanto a máquina ainda está
 energizada ou sem bloqueio, a situação no posto vai mudar, e o que foi
 conferido precisa ser reconfirmado depois. O caminho mais barato tende a
 resolver cada pendência assim que ela abre, que é o que a prática de
-segurança recomenda.
+segurança recomenda. Além disso, a NR-10 (item 10.13.1) impõe uma
+sequência de desenergização, representada aqui pelo campo `requer` de
+cada item: cada um só fica disponível depois que o anterior foi conferido
+E as pendências dele foram resolvidas.
 
-Simplificação declarada: a formulação torna a ordem errada mais cara, mas não impossível.
 A NR-10 (item 10.13.1) exige a desenergização nesta sequência:
 a) seccionamento ou desligamento;
 b) constatação da ausência de tensão;
@@ -55,9 +57,14 @@ e) proteção dos elementos energizados existentes na zona controlada (Anexo II 
 proteção dos trabalhadores para os efeitos do arco elétrico;
 f) instalação da sinalização de impedimento de reenergização; e
 g) delimitação e sinalização da área de trabalho.
+Essa ordem é imposta nas ações pelo campo 'requer'.
 
 O que não é busca no AMS: classificar o risco de falha e escolher as NRs
 aplicáveis — isso é classificação, não sequência de ações.
+
+Estado inicial: ((), ()) - nada verificado e nenhuma pendência aberta.
+Objetivo: todos os itens verificados e nenhuma pendência aberta
+    (a intervenção pode ser liberada com segurança).
 
 Fontes:
 * NR-10: https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/nr-10-atualizada-2026-1.pdf
@@ -72,14 +79,14 @@ from dataclasses import dataclass
 VERIFICAR = "verificar"
 RESOLVER = "resolver"
 
-
 @dataclass(frozen=True)
 class Item:
     """Um item do roteiro de checagens."""
 
     nome: str
-    esforco: float              # custo de verificar o item (minutos)
-    abre: tuple[str, ...] = ()  # pendências que verificar este item abre
+    esforco: float               # custo de verificar o item (minutos)
+    abre: tuple[str, ...] = ()   # pendências que verificar este item abre
+    requer: tuple[str, ...] = () # itens que precisam estar concluídos antes de verificar este item
 
 
 @dataclass(frozen=True)
@@ -89,45 +96,61 @@ class Pendencia:
     nome: str
     esforco: float              # custo de resolvê-la (minutos)
 
+# Sequência de desenergização da NR-10 (item 10.13.1, versão 2026), imposta
+# pelo campo `requer`: cada item só fica disponível depois que o anterior foi
+# verificado E as pendências dele foram resolvidas.
+#
+#   EPI → a) → b) → c)+f) → d)        e) e g): fora do escopo
+#
+# Desvios da letra da norma, todos deliberados:
+#   - o EPI contra arco vem ANTES de a): o arco acontece na própria manobra
+#     de seccionamento, então o técnico precisa estar protegido antes dela;
+#   - c) e f) são um item só (LOTO): cadeado e etiqueta saem juntos (NR-12);
+#   - e) proteção dos elementos energizados na zona controlada e g)
+#     delimitação da área não estão modeladas.
+# As energias residuais (NR-12) não são desta cadeia: dependem só do bloqueio.
+PROTECAO_ARCO = "vestimenta e EPI adequados ao risco elétrico"
+SECCIONAMENTO = "máquina parada e alimentação seccionada"        # a)
+AUSENCIA_TENSAO = "ausência de tensão constatada"                # b)
+BLOQUEIO = "bloqueio e etiquetagem aplicados"                    # c) + f)
+ATERRAMENTO = "aterramento temporário instalado"                 # d)
+
 # NR-12 + NR-10: intervenção elétrica numa máquina no nível do chão
 ITENS_NIVEL_CHAO: tuple[Item, ...] = (
+    # fora da sequência — podem ser feitos a qualquer momento
     Item("técnico qualificado e autorizado", 2.0),
-    Item("máquina parada e alimentação seccionada", 2.0, ("seccionar a alimentação",)),
-    Item("bloqueio e etiquetagem aplicados", 2.0, ("aplicar cadeado e etiqueta",)),
-    Item("ausência de tensão constatada", 2.5, ("medir com multímetro",)),
-    Item("aterramento temporário instalado", 2.0, ("instalar o aterramento temporário",)),
-    Item("energias residuais descarregadas (pneumática ou hidráulica)", 1.5, ("descarregar as energias residuais",)),
-    Item("vestimenta e EPI adequados ao risco elétrico", 1.0, ("usar vestimenta e EPI adequados",)),
+    Item("ferramentas isoladas inspecionadas", 1.5, ("substituir a ferramenta danificada",)),
+    Item("pessoa capacitada em primeiros socorros presente", 1.0),
+    # sequência NR-10, na ordem da norma
+    Item(PROTECAO_ARCO, 1.0, ("usar vestimenta e EPI adequados",)),
+    Item(SECCIONAMENTO, 2.0, ("seccionar a alimentação",), requer=(PROTECAO_ARCO,)),
+    Item(AUSENCIA_TENSAO, 2.5, ("medir com multímetro",), requer=(SECCIONAMENTO,)),
+    Item(BLOQUEIO, 2.0, ("aplicar cadeado e etiqueta",), requer=(AUSENCIA_TENSAO,)),
+    Item(ATERRAMENTO, 2.0, ("instalar o aterramento temporário",), requer=(BLOQUEIO,)),
+    # ramo NR-12: só depois do bloqueio, independente do resto da cadeia
+    Item("energias residuais descarregadas (pneumática ou hidráulica)", 1.5,
+         ("descarregar as energias residuais",), requer=(BLOQUEIO,)),
 )
 PENDENCIAS_NIVEL_CHAO: dict[str, float] = {
+    "substituir a ferramenta danificada": 5.0,
     "seccionar a alimentação": 3.0,
-    "aplicar cadeado e etiqueta": 8.0,
     "medir com multímetro": 2.0,
+    "aplicar cadeado e etiqueta": 8.0,
     "instalar o aterramento temporário": 10.0,
-    "descarregar as energias residuais": 7.0,
     "usar vestimenta e EPI adequados": 4.0,
+    "descarregar as energias residuais": 7.0,
 }
 
 # NR-12 + NR-10 + NR-35: intervenção elétrica numa máquina em plataforma acima de 2m
 ITENS_NIVEL_ALTO: tuple[Item, ...] = (
-    Item("técnico qualificado e autorizado", 2.0),
-    Item("máquina parada e alimentação seccionada", 2.0, ("seccionar a alimentação",)),
-    Item("bloqueio e etiquetagem aplicados", 2.0, ("aplicar cadeado e etiqueta",)),
-    Item("ausência de tensão constatada", 2.5, ("medir com multímetro",)),
-    Item("aterramento temporário instalado", 2.0, ("instalar o aterramento temporário",)),
-    Item("energias residuais descarregadas (pneumática ou hidráulica)", 1.5, ("descarregar as energias residuais",)),
-    Item("vestimenta e EPI adequados ao risco elétrico", 1.0, ("usar vestimenta e EPI adequados",)),
+    *ITENS_NIVEL_CHAO,
+    # NR-35
     Item("análise de risco do trabalho em altura e permissão de trabalho emitidas", 3.0),
     Item("trabalhador capacitado para altura", 2.0),
     Item("sistema de proteção contra quedas inspecionado", 3.0, ("instalar a linha de vida",)),
 )
 PENDENCIAS_NIVEL_ALTO: dict[str, float] = {
-    "seccionar a alimentação": 3.0,
-    "aplicar cadeado e etiqueta": 8.0,
-    "medir com multímetro": 2.0,
-    "instalar o aterramento temporário": 10.0,
-    "descarregar as energias residuais": 7.0,
-    "usar vestimenta e EPI adequados": 4.0,
+    **PENDENCIAS_NIVEL_CHAO,
     "instalar a linha de vida": 15.0,
 }
 
@@ -151,14 +174,45 @@ class Conformidade:
         self._item_por_nome = {i.nome: i for i in itens}
         self.estado_inicial: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
 
+        # Validação: somente itens e pendências existentes podem ser referenciados nos
+        # campos `abre` e `requer`.
+        for i in itens:
+            for r in i.requer:
+                if r not in self._item_por_nome:
+                    raise ValueError(f"{i.nome}: requer item inexistente {r!r}")
+            for p in i.abre:
+                if p not in pendencias:
+                    raise ValueError(f"{i.nome}: abre pendência inexistente {p!r}")
+
     @staticmethod
     def _partes(acao: str) -> tuple[str, str]:
         verbo, _, nome = acao.partition(":")
         return verbo, nome
 
+    def _concluido(self, nome: str, estado: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
+        """Um item está concluído quando foi verificado E as pendências que
+        ELE abre estão resolvidas. Pendências de outros itens não contam —
+        é isso que impede um item não relacionado de travar a cadeia."""
+        verificados, abertas = estado
+        return nome in verificados and not any(
+            p in abertas for p in self._item_por_nome[nome].abre)
+            # Checa se item foi verificado e se não existem pendências abertas que ele abre.
+            # any(vazio) = False -> item sem pendências abertas está concluído
+
+    def _liberado(self, item: Item, estado: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
+        """O item pode ser verificado: todos os seus pré-requisitos estão concluídos."""
+        return all(self._concluido(r, estado) for r in item.requer)
+        # Procura todos os pré-requisitos do item e verifica se estão concluídos.
+        # Se todos estiverem, o item está liberado para verificação.
+        # Se um pré-requisito não foi verificado, o item não está liberado.
+        # Se um pré-requisito foi verificado com pendência aberta, o item não está liberado.
+        # all(vazio) = True -> item sem pré-requisitos está liberado
+
     def acoes(self, estado: tuple[tuple[str, ...], tuple[str, ...]]) -> list[str]:
         verificados, abertas = estado
-        disponiveis = [f"{VERIFICAR}:{i.nome}" for i in self.itens if i.nome not in verificados]
+        disponiveis = [f"{VERIFICAR}:{i.nome}" for i in self.itens
+                       if i.nome not in verificados and self._liberado(i, estado)]
+                    # Checa se o item não foi verificado ainda e se está liberado para verificação.
         return disponiveis + [f"{RESOLVER}:{p}" for p in abertas]
 
     def transicao(
@@ -167,6 +221,8 @@ class Conformidade:
         verificados, abertas = estado
         verbo, nome = self._partes(acao)
         if verbo == VERIFICAR:
+            if not self._liberado(self._item_por_nome[nome], estado):
+                raise ValueError(f"fora da ordem da NR-10: {acao}")
             novos_verificados = tuple(sorted((*verificados, nome)))
             novas_abertas = tuple(sorted((*abertas,
                                           *(p for p in self._item_por_nome[nome].abre
