@@ -127,7 +127,7 @@ Baseado em utilidade, com memória ligada à máquina.
 
 O ambiente parcialmente observável elimina o reativo simples: nem toda falha aparece na leitura do instante, então o agente precisa de estado interno. O estado interno sozinho não basta: como o custo de cada erro é diferente, a decisão precisa pesar a chance de falha contra esse custo. Com os custos da seção 1, parar compensa acima de 16,7% de chance de falha, e inspecionar, acima de 12,5%.
 
-A linha de base do lab 06 é baseada em modelo, com duas regras reativas e memória por ciclo de ferramenta. Seus erros mostram o que falta: ela olha uma variável por vez, e a memória indica risco na ferramenta, mas não separa o caso que vai falhar do que não vai.
+A linha de base do lab 06 é baseada em modelo, com duas regras reativas e memória por ciclo de ferramenta. Seus erros mostram o que falta: ela olha uma variável por vez, e a memória indica risco na máquina, mas não separa o caso que vai falhar do que não vai.
 
 ---
 
@@ -171,9 +171,13 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** na Atividade Orientada.
 
-[latência aceitável, custo aceitável, o que o agente jamais
-pode fazer sozinho, e a troca qualidade × custo que você
-aceita — com um exemplo numérico]
+**O que o agente jamais pode fazer sozinho:** o agente não trabalha diretamente nas máquinas. Ele consulta informações e interage sempre com humanos, como técnicos e supervisores. Ele nunca libera a intervenção, aplica ou retira bloqueio e etiquetagem, para, religa ou opera uma máquina, ou substitui a decisão de um técnico ou supervisor. A liberação é a ação crítica: um erro pode levar o técnico a intervir em uma máquina energizada, e o efeito de um acidente não se desfaz.
+
+**Latência aceitável:** cada recomendação fica pronta em no máximo 10 s.
+
+**Custo aceitável:** até US$ 0,01 por recomendação.
+
+**Troca qualidade × custo:** aceito pagar até 5 vezes mais por recomendação, de US$ 0,002 para US$ 0,01, se isso evitar pelo menos 1 falha sem aviso a cada 10.000 ordens. Nesse volume, o gasto extra é de US$ 80. Se Tm for 1 h, 1 falha evitada economiza 5 h.
 
 ---
 
@@ -192,8 +196,26 @@ Perguntas que guiam o preenchimento:
 **Quando se preenche:** na Atividade Orientada — o pacote `D2-07` traz o
 modelo da tabela e dois exemplos preenchidos.
 
-[tabela: nome · entrada · saída · é reversível? · risco se
-errar — ações de leitura e de escrita]
+O agente não trabalha diretamente nas máquinas: consulta informações e interage sempre com humanos, como técnicos e supervisores. Quem age sobre a máquina são eles.
+
+| Ação | Entrada | Saída | É reversível? | Risco se errar |
+|---|---|---|---|---|
+| Consultar a ordem de serviço | Número da ordem | Máquina, tipo de produto, leituras e descrição da intervenção | Sim: só lê | Texto com ruído ou leitura errada contamina o risco e as NRs indicadas, e o técnico recebe uma recomendação sem base |
+| Consultar o histórico de recomendações | Identificador da máquina | Recomendações anteriores, se foram executadas e falhas registradas | Sim: só lê | Histórico incompleto faz o agente mudar de recomendação sem motivo ou ignorar falhas recentes da mesma máquina |
+| Buscar o trecho aplicável das NRs | Descrição da intervenção e NRs candidatas (10, 12 e 35) | Trechos com norma e item citados | Sim: só lê | Trecho errado omite uma exigência de segurança, como a sequência de desenergização da NR-10, ou cita um item que não se aplica |
+| Avaliar o risco de falha | Leituras e histórico da máquina | Nível de risco, modo de falha provável e justificativa | Sim: só calcula e não tem efeito externo | Falso negativo deixa a máquina falhar sem aviso, com reparo e espera de peças; falso positivo para a máquina sem necessidade e tira horas de produção |
+| Montar o roteiro de segurança | Descrição da intervenção e trechos das NRs | Itens a conferir em ordem, pendências e indicação de bloqueio e etiquetagem | Sim: é rascunho até ser enviado | Roteiro que omite o bloqueio ou inverte a sequência da NR-10 expõe o técnico a energia na intervenção |
+| Recomendar a ação ao técnico | Ordem de serviço, risco avaliado, roteiro completo com NRs citadas e justificativa | Recomendação enviada: parar, inspecionar ou seguir, com NRs e bloqueio | Não: a mensagem pode ser corrigida, mas o que o técnico já fez a partir dela não se desfaz | Comunicação, risco alto: recomendar "seguir" ou omitir o bloqueio leva o técnico a intervir em uma máquina energizada ou prestes a falhar; mudar de recomendação sem motivo desgasta a confiança dele |
+| Escalar ao supervisor | Ordem de serviço, motivo (dado inconsistente ou baixa confiança) e o que já foi conferido | Caso na fila do supervisor de segurança | Sim: o caso pode voltar ao fluxo normal | Comunicação: escalar demais cansa o supervisor e atrasa ordens; escalar sem o que já foi conferido duplica o trabalho; não escalar deixa um dado inconsistente virar recomendação errada |
+| Registrar a recomendação para auditoria | Ordem de serviço, recomendação, justificativa e fontes usadas | Registro com data e hora | Parcialmente: o registro permanece, e a correção entra como novo registro | Escrita: registro ausente ou errado impede apurar um incidente e mostrar que a norma foi seguida |
+
+**Quem executa cada ação:**
+
+- **O agente sozinho:** consultar a ordem de serviço, consultar o histórico, buscar nas NRs, avaliar o risco, redigir o roteiro, escalar ao supervisor e registrar para auditoria. Nenhuma dessas ações atua sobre a máquina.
+- **Com confirmação humana:** recomendar ao técnico. O agente envia a recomendação e o roteiro, mas nada acontece até o técnico decidir segui-los e conferir cada item no posto.
+- **Só humano:** aplicar e retirar o bloqueio, parar e religar a máquina, executar a intervenção e liberá-la.
+
+O que o agente jamais pode fazer está na seção 5.
 
 ---
 
