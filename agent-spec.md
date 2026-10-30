@@ -15,7 +15,7 @@ para qualquer empresa é uma linha genérica — o exemplo do seu segmento
 -->
 
 **Domínio:** AMS · Assistente de Manutenção Segura
-**Autor(a):** Bruna de Paula Monarin · **Última revisão:** 16/10/2026
+**Autor(a):** Bruna de Paula Monarin · **Última revisão:** 30/10/2026
 
 ---
 
@@ -49,22 +49,28 @@ Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e desempe
 Explicação para o número 29,948: como a taxa de falhas é baixa, o peso para falhas não antecipadas deve ser maior para que o agente considere importante antecipar falhas, já que devemos otimizar o tempo ativo das máquinas. De forma similar, recomendar manutenções demais também é um problema. Ainda assim, recomendar e pecar por excesso é melhor do que ignorar a necessidade de manutenções. O número minimiza ao máximo o desempenho da pior opção.
 -->
 
-Horas perdidas = hd+hf (quanto menor, melhor)
+Horas perdidas = hd+hf+hi (quanto menor, melhor)
 
 hd = horas perdidas em manutenções em que a máquina não falharia = número de paradas desnecessárias * tempo de manutenção
-hf = horas perdidas por falha em que o agente não havia recomendado manutenção na última ordem de serviço antes da falha = número de falhas não antecipadas * tempo em falha
+hf = horas perdidas por falha em que o agente não havia recomendado manutenção na última ordem de serviço antes da falha = número de falhas sem aviso * tempo em falha + número de falhas inspecionadas * (1 - d) * tempo em falha
+hi = horas perdidas em inspeções = número de inspeções * tempo de inspeção
 
-Conjunto: as 10.000 ordens de serviço do AI4I, avaliação offline; em planta real, as ordens de serviço de cada máquina no período.
+Conjunto: as 10.000 ordens de serviço do AI4I, avaliação offline; em planta real, as ordens de serviço de cada máquina no período. A linha de base também é medida nos 30 casos de `D2/lab06-agente-baseline/casos-dataset.csv`.
 
-Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e menos horas perdidas do que o melhor agente simples (agente que nunca ou sempre recomenda manutenção). Considerando tempo médio de manutenção Tm (em horas) e tempo médio em falha Tf (em horas) para uma máquina (usando uma média para todos os tipos de máquina), e que Tf = Tm * 5 (estimativa baseada no fato de que uma quebra exige reparo e espera de peças), temos os seguintes valores para os agentes simples:
+Sucesso: zero ordens inseguras (omissão LOTO necessária/NR ignorada) e menos horas perdidas do que o melhor agente simples (agente que sempre recomenda manutenção, sempre recomenda inspeção ou nunca recomenda nada). Considerando tempo médio de manutenção Tm (em horas), tempo médio em falha Tf (em horas) e tempo médio de inspeção Ti (em horas) para uma máquina (usando uma média para todos os tipos de máquina), que Tf = Tm * 5 (estimativa baseada no fato de que uma quebra exige reparo e espera de peças), que Ti = Tm * 0,5 (estimativa: a inspeção é mais rápida do que a manutenção) e que a inspeção detecta a falha com probabilidade d = 0,8 (estimativa), temos os seguintes valores para os agentes simples:
 * Agente sempre recomenda manutenção: 9661 * Tm
+* Agente sempre recomenda inspeção: 10000 * Ti + 339 * (1 - d) * Tf = 5339 * Tm
 * Agente nunca recomenda manutenção: 339 * Tf = 339 * 5 * Tm = 1695 * Tm
 
-Termo contra a trapaça: recomendar manutenções sempre gasta horas de manutenção e não recomendar leva a falhas - nenhum dos extremos passa. O agente não é punido se o técnico ignora sua recomendação, mas é punido se mudar de recomendação na ordem seguinte.
+Termo contra a trapaça: recomendar manutenções sempre gasta horas de manutenção, inspecionar sempre gasta horas de inspeção e não recomendar leva a falhas - nenhum dos extremos passa. O agente não é punido se o técnico ignora sua recomendação, mas é punido se mudar de recomendação na ordem seguinte.
+
+O que mudou e por quê (lab 06): entrou a ação de inspecionar, com custo próprio e chance de detecção, porque a fórmula anterior só previa parada e falha. Na primeira versão, a inspeção sempre detectava a falha, e inspecionar tudo vencia quase qualquer combinação de custos.
 
 **Environment:**
 
-Planta industrial, diferentes tipos de máquinas de produção (L/M/H, com taxas de falha distintas), técnicos de manutenção industrial, supervisor de segurança/auditor, normas regulamentares NR-10, NR-12, NR-35, ordens de serviço com descrição em texto livre (possível ruído), pressão de tempo, dados podem ser inconsistentes (registros com falha marcada sem nenhum modo identificado).
+Planta industrial, produtos de diferentes qualidades (L/M/H, com taxas de falha distintas), técnicos de manutenção industrial, supervisor de segurança/auditor, normas regulamentares NR-10, NR-12, NR-35, ordens de serviço com descrição em texto livre (possível ruído), pressão de tempo, dados podem ser inconsistentes (registros com falha marcada sem nenhum modo identificado).
+
+O que mudou e por quê (lab 06): L/M/H é a qualidade do produto, não um tipo de máquina. O AI4I não identifica máquinas.
 
 **Actuators:**
 
@@ -117,8 +123,11 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** no sábado (encontro 2, manhã).
 
-[o tipo mais simples que resolve, justificado pela dimensão
-do ambiente que o obriga]
+Baseado em utilidade, com memória ligada à máquina.
+
+O ambiente parcialmente observável elimina o reativo simples: nem toda falha aparece na leitura do instante, então o agente precisa de estado interno. O estado interno sozinho não basta: como o custo de cada erro é diferente, a decisão precisa pesar a chance de falha contra esse custo. Com os custos da seção 1, parar compensa acima de 16,7% de chance de falha, e inspecionar, acima de 12,5%.
+
+A linha de base do lab 06 é baseada em modelo, com duas regras reativas e memória por ciclo de ferramenta. Seus erros mostram o que falta: ela olha uma variável por vez, e a memória indica risco na ferramenta, mas não separa o caso que vai falhar do que não vai.
 
 ---
 
@@ -137,9 +146,15 @@ Perguntas que guiam o preenchimento:
 operacional completa — primária, secundárias, conjunto e limiar — é item da
 Atividade Orientada.
 
-[métrica primária e duas secundárias, cada uma com: como se
-calcula, sobre qual conjunto, qual o limiar de sucesso e o
-valor de hoje]
+Valores de hoje: linha de base do lab 06 (`python -m ams.baseline`).
+
+| Métrica | Como se calcula | Limiar de sucesso | Hoje (30 casos) | Hoje (AI4I inteiro) |
+|---|---|---|---:|---:|
+| Primária: horas perdidas | hd + hf + hi, em múltiplos de Tm (seção 1) | Menos que o melhor agente simples: 21 Tm nos 30 casos e 1695 Tm no AI4I inteiro | 10,0 Tm | 2044 Tm |
+| Secundária: acerto da decisão | Casos com decisão igual à `acao_correta`, sobre o total | Mais que a linha de base | 23/30 | Não se aplica: o AI4I não tem esse rótulo |
+| Secundária: falhas sem aviso | Falhas em que o agente decidiu seguir operando, sobre o total de falhas | Menos que a linha de base | 1/6 | 102/339 |
+
+Conjuntos: 30 casos do AI4I (`casos-dataset.csv`), com 6 falhas (20%), e as 10.000 ordens do AI4I (3,4% de falhas). Os 30 casos foram escolhidos para testar o agente e mostram onde ele erra. O AI4I inteiro mostra quanto ele vale: a linha de base vence nos 30 casos, mas perde para "nunca recomendar" no AI4I inteiro.
 
 ---
 
